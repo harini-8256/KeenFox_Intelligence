@@ -1,0 +1,365 @@
+<!-- <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeenFox Intelligence Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: white; margin-bottom: 10px; }
+        .subtitle { color: rgba(255,255,255,0.9); margin-bottom: 30px; }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .card h2 { color: #333; margin-bottom: 20px; }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover { background: #5a67d8; }
+        .result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            overflow: auto;
+            max-height: 400px;
+        }
+        .result pre { white-space: pre-wrap; font-family: monospace; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .loading { display: none; text-align: center; padding: 20px; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 KeenFox Intelligence System</h1>
+        <div class="subtitle">AI-Powered Competitive Intelligence</div>
+        
+        <div class="grid-2">
+            <div class="card">
+                <h2>🔍 Discover Competitors</h2>
+                <input type="text" id="discoverCompany" placeholder="Enter company name">
+                <button onclick="discoverCompetitors()">Discover</button>
+                <div id="discoverResult" class="result" style="display:none"><pre id="discoverOutput"></pre></div>
+            </div>
+            
+            <div class="card">
+                <h2>🧠 Run Intelligence</h2>
+                <input type="text" id="intelCompany" placeholder="Enter company name">
+                <button onclick="runIntelligence()">Generate Report</button>
+                <div id="intelResult" class="result" style="display:none"><pre id="intelOutput"></pre></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📄 Get Full Report</h2>
+            <input type="text" id="reportId" placeholder="Enter Report ID">
+            <button onclick="getReport()">Get Report</button>
+            <div id="reportResult" class="result" style="display:none"><pre id="reportOutput"></pre></div>
+        </div>
+        
+        <div class="card">
+            <h2>💬 Ask Question</h2>
+            <input type="text" id="qaReportId" placeholder="Enter Report ID">
+            <textarea id="question" rows="3" placeholder="Ask anything about the report..."></textarea>
+            <button onclick="askQuestion()">Ask</button>
+            <div id="qaResult" class="result" style="display:none"><pre id="qaOutput"></pre></div>
+        </div>
+        
+        <div class="loading" id="loading">⏳ Processing...</div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        async function discoverCompetitors() {
+            const company = document.getElementById('discoverCompany').value;
+            if(!company) { alert('Enter company name'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/discover_competitors`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_name: company })
+                });
+                const data = await res.json();
+                document.getElementById('discoverOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('discoverResult').style.display = 'block';
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        async function runIntelligence() {
+            const company = document.getElementById('intelCompany').value;
+            if(!company) { alert('Enter company name'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/run_intelligence`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_name: company })
+                });
+                const data = await res.json();
+                document.getElementById('intelOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('intelResult').style.display = 'block';
+                if(data.report_id) {
+                    document.getElementById('reportId').value = data.report_id;
+                    document.getElementById('qaReportId').value = data.report_id;
+                }
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        async function getReport() {
+            const reportId = document.getElementById('reportId').value;
+            if(!reportId) { alert('Enter report ID'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/get_report?report_id=${reportId}`);
+                const data = await res.json();
+                document.getElementById('reportOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('reportResult').style.display = 'block';
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        async function askQuestion() {
+            const reportId = document.getElementById('qaReportId').value;
+            const question = document.getElementById('question').value;
+            if(!reportId) { alert('Enter report ID'); return; }
+            if(!question) { alert('Enter question'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/ask_question`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ report_id: reportId, question: question })
+                });
+                const data = await res.json();
+                document.getElementById('qaOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('qaResult').style.display = 'block';
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        function showLoading() { document.getElementById('loading').style.display = 'block'; }
+        function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+    </script>
+</body>
+</html> -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KeenFox Intelligence Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: white; margin-bottom: 10px; }
+        .subtitle { color: rgba(255,255,255,0.9); margin-bottom: 30px; }
+        .card {
+            background: white;
+            border-radius: 16px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+        .card h2 { color: #333; margin-bottom: 20px; }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+        button:hover { background: #5a67d8; }
+        .result {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 20px;
+            overflow: auto;
+            max-height: 400px;
+        }
+        .result pre { white-space: pre-wrap; font-family: monospace; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .loading { display: none; text-align: center; padding: 20px; color: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 KeenFox Intelligence System</h1>
+        <div class="subtitle">AI-Powered Competitive Intelligence</div>
+        
+        <div class="grid-2">
+            <div class="card">
+                <h2>🔍 Discover Competitors</h2>
+                <input type="text" id="discoverCompany" placeholder="Enter company name">
+                <button onclick="discoverCompetitors()">Discover</button>
+                <div id="discoverResult" class="result" style="display:none"><pre id="discoverOutput"></pre></div>
+            </div>
+            
+            <div class="card">
+                <h2>🧠 Run Intelligence</h2>
+                <input type="text" id="intelCompany" placeholder="Enter company name">
+                <button onclick="runIntelligence()">Generate Report</button>
+                <div id="intelResult" class="result" style="display:none"><pre id="intelOutput"></pre></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📄 Get Full Report</h2>
+            <input type="text" id="reportId" placeholder="Enter Report ID">
+            <button onclick="getReport()">Get Report</button>
+            <div id="reportResult" class="result" style="display:none"><pre id="reportOutput"></pre></div>
+        </div>
+        
+        <div class="card">
+            <h2>💬 Ask Question</h2>
+            <input type="text" id="qaReportId" placeholder="Enter Report ID">
+            <textarea id="question" rows="3" placeholder="Ask anything about the report..."></textarea>
+            <button onclick="askQuestion()">Ask</button>
+            <div id="qaResult" class="result" style="display:none"><pre id="qaOutput"></pre></div>
+        </div>
+        
+        <!-- NEW: What Changed Card -->
+        <div class="card">
+            <h2>🔄 What Changed Since Last Run</h2>
+            <p style="color: #666; margin-bottom: 15px;">Compare the last two reports to see what changed</p>
+            <button onclick="whatChanged()">Compare Reports</button>
+            <div id="changedResult" class="result" style="display:none"><pre id="changedOutput"></pre></div>
+        </div>
+        
+        <div class="loading" id="loading">⏳ Processing...</div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        
+        async function discoverCompetitors() {
+            const company = document.getElementById('discoverCompany').value;
+            if(!company) { alert('Enter company name'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/discover_competitors`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_name: company })
+                });
+                const data = await res.json();
+                document.getElementById('discoverOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('discoverResult').style.display = 'block';
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        async function runIntelligence() {
+            const company = document.getElementById('intelCompany').value;
+            if(!company) { alert('Enter company name'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/run_intelligence`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ company_name: company })
+                });
+                const data = await res.json();
+                document.getElementById('intelOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('intelResult').style.display = 'block';
+                if(data.report_id) {
+                    document.getElementById('reportId').value = data.report_id;
+                    document.getElementById('qaReportId').value = data.report_id;
+                }
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        async function getReport() {
+            const reportId = document.getElementById('reportId').value;
+            if(!reportId) { alert('Enter report ID'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/get_report?report_id=${reportId}`);
+                const data = await res.json();
+                document.getElementById('reportOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('reportResult').style.display = 'block';
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        async function askQuestion() {
+            const reportId = document.getElementById('qaReportId').value;
+            const question = document.getElementById('question').value;
+            if(!reportId) { alert('Enter report ID'); return; }
+            if(!question) { alert('Enter question'); return; }
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/ask_question`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ report_id: reportId, question: question })
+                });
+                const data = await res.json();
+                document.getElementById('qaOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('qaResult').style.display = 'block';
+            } catch(e) { alert('Error: ' + e.message); }
+            hideLoading();
+        }
+        
+        // NEW: What Changed Function
+        async function whatChanged() {
+            showLoading();
+            try {
+                const res = await fetch(`${API_BASE}/what_changed`);
+                const data = await res.json();
+                document.getElementById('changedOutput').textContent = JSON.stringify(data, null, 2);
+                document.getElementById('changedResult').style.display = 'block';
+            } catch(e) {
+                document.getElementById('changedOutput').textContent = 'Error: ' + e.message;
+                document.getElementById('changedResult').style.display = 'block';
+            }
+            hideLoading();
+        }
+        
+        function showLoading() { document.getElementById('loading').style.display = 'block'; }
+        function hideLoading() { document.getElementById('loading').style.display = 'none'; }
+    </script>
+</body>
+</html>
