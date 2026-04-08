@@ -243,13 +243,26 @@ Open:
 
 ---
 
+🔍 OVERVIEW
+This project is a data-driven AI system that continuously gathers competitor signals and transforms them into actionable go-to-market (GTM) strategy recommendations.
+
+Unlike basic LLM tools, this system:
+
+Uses real-world data (Reddit, pricing pages)
+
+Extracts structured intelligence (features, sentiment, pricing)
+
+Applies AI reasoning to generate strategic insight
+
+
 ## ⚡ Performance
 
 * Competitor Discovery: 2–3 seconds
 * Full Intelligence Report: 15–20 seconds
 * Q&A Response: 2–3 seconds
 
----
+
+
 
 ## ⚠️ Limitations
 
