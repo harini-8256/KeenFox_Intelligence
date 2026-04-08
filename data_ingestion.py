@@ -19,11 +19,9 @@ class DataIngestor:
     async def discover_competitors(self, company_name: str) -> List[str]:
         """Discover competitors for any given company using AI and search"""
         try:
-            # Search for competitors
             query = f"{company_name} competitors top 10"
             search_results = list(search(query, num_results=5))
             
-            # Use Gemini to extract competitor names
             from intelligence_engine import IntelligenceAnalyzer
             analyzer = IntelligenceAnalyzer()
             
@@ -38,16 +36,15 @@ class DataIngestor:
             response = await analyzer.extract_with_gemini(prompt)
             competitors = json.loads(response) if response else []
             
-            return competitors[:7]  # Return top 7
+            return competitors[:7]
         
         except Exception as e:
             print(f"Error discovering competitors: {e}")
-            return ["Notion", "Asana", "ClickUp", "Monday.com"]  # Fallback
+            return ["Notion", "Asana", "ClickUp", "Monday.com"]
     
     async def fetch_g2_reviews(self, competitor: str) -> List[Dict]:
         """Fetch reviews from G2"""
         try:
-            # G2's API endpoint (simplified - real implementation would need proper auth)
             competitor_slug = competitor.lower().replace(" ", "-").replace(".", "")
             url = f"https://www.g2.com/products/{competitor_slug}/reviews"
             
@@ -58,7 +55,6 @@ class DataIngestor:
             review_cards = soup.select('.paper.paper--white.paper__body')[:20]
             
             for card in review_cards:
-                # Extract review content
                 title_elem = card.select_one('.mb-0')
                 content_elem = card.select_one('.m-0')
                 rating_elem = card.select('.fa-star')
@@ -112,51 +108,57 @@ class DataIngestor:
             return []
     
     async def fetch_reddit_discussions(self, competitor: str) -> List[Dict]:
-        """Fetch Reddit discussions about competitor"""
+        """Fetch Reddit discussions - Works without API key"""
         try:
-            subreddits = ['projectmanagement', 'SaaS', 'startups', 'productivity']
+            url = "https://www.reddit.com/search.json"
+            params = {
+                'q': competitor,
+                'limit': 20,
+                'sort': 'relevance'
+            }
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = self.session.get(url, params=params, headers=headers, timeout=10)
+            data = response.json()
+            
             discussions = []
+            for post in data.get('data', {}).get('children', []):
+                post_data = post['data']
+                discussions.append({
+                    'title': post_data.get('title', ''),
+                    'content': post_data.get('selftext', '')[:500],
+                    'score': post_data.get('score', 0),
+                    'num_comments': post_data.get('num_comments', 0),
+                    'created': datetime.fromtimestamp(post_data.get('created_utc', 0)),
+                    'subreddit': post_data.get('subreddit', ''),
+                    'platform': 'Reddit',
+                    'competitor': competitor
+                })
             
-            for subreddit in subreddits:
-                url = f"https://www.reddit.com/r/{subreddit}/search.json"
-                params = {
-                    'q': competitor,
-                    'limit': 10,
-                    'sort': 'relevance',
-                    'restrict_sr': 1
-                }
-                
-                response = self.session.get(url, params=params, timeout=10)
-                data = response.json()
-                
-                for post in data.get('data', {}).get('children', []):
-                    post_data = post['data']
-                    discussions.append({
-                        'title': post_data['title'],
-                        'content': post_data['selftext'],
-                        'score': post_data['score'],
-                        'num_comments': post_data['num_comments'],
-                        'created': datetime.fromtimestamp(post_data['created_utc']),
-                        'subreddit': subreddit,
-                        'platform': 'Reddit',
-                        'competitor': competitor
-                    })
-            
+            print(f"✅ Reddit: Found {len(discussions)} posts for {competitor}")
             return discussions
-        
+            
         except Exception as e:
             print(f"Error fetching Reddit for {competitor}: {e}")
             return []
     
     async def fetch_pricing_info(self, competitor: str) -> Dict:
-        """Extract pricing information from website"""
+        """Extract pricing information from website - works for SaaS AND Retail"""
         try:
-            # Common pricing page patterns
             base_domain = competitor.lower().replace(" ", "").replace(".", "")
+            
+            # SaaS and Retail pricing URL patterns
             pricing_urls = [
+                # SaaS patterns
                 f"https://{base_domain}.com/pricing",
                 f"https://www.{base_domain}.com/pricing",
-                f"https://{base_domain}.com/plans"
+                f"https://{base_domain}.com/plans",
+                # Retail patterns
+                f"https://www.{base_domain}.com",
+                f"https://{base_domain}.com",
             ]
             
             pricing_data = {}
@@ -165,60 +167,109 @@ class DataIngestor:
                     response = self.session.get(url, timeout=10)
                     soup = BeautifulSoup(response.text, 'html.parser')
                     
-                    # Look for pricing elements
-                    price_elements = soup.find_all(string=re.compile(r'\$\d+'))
+                    # Look for price elements (works for both SaaS and Retail)
+                    price_elements = soup.find_all(string=re.compile(r'\$\d+(?:\.\d+)?'))
+                    
+                    # Also look for sale/clearance prices
+                    sale_elements = soup.find_all(string=re.compile(r'(?:sale|clearance|now)\s*\$\d+', re.IGNORECASE))
+                    
+                    all_prices = []
                     if price_elements:
-                        prices = [re.findall(r'\$\d+', elem)[0] for elem in price_elements if re.findall(r'\$\d+', elem)]
-                        pricing_data['prices_found'] = prices[:5]
+                        all_prices.extend([re.findall(r'\$\d+(?:\.\d+)?', elem)[0] for elem in price_elements if re.findall(r'\$\d+(?:\.\d+)?', elem)])
+                    if sale_elements:
+                        all_prices.extend([re.findall(r'\$\d+(?:\.\d+)?', elem)[0] for elem in sale_elements if re.findall(r'\$\d+(?:\.\d+)?', elem)])
+                    
+                    if all_prices:
+                        # Remove duplicates and take first 5
+                        unique_prices = list(set(all_prices))[:5]
+                        pricing_data['prices_found'] = unique_prices
                         pricing_data['url'] = url
+                        pricing_data['type'] = 'retail' if 'walmart' in competitor.lower() else 'saas'
                         break
-                
-                except:
+                        
+                except Exception as e:
                     continue
             
             return pricing_data
-        
+            
         except Exception as e:
             print(f"Error fetching pricing for {competitor}: {e}")
             return {}
     
     async def fetch_product_updates(self, competitor: str) -> List[Dict]:
-        """Fetch product updates and release notes"""
+        """Fetch product updates from release notes using direct URLs"""
         try:
-            # Search for release notes
-            query = f"{competitor} release notes what's new"
-            search_results = list(search(query, num_results=5))
+            domain = competitor.lower().replace(" ", "").replace(".", "")
+            
+            release_paths = [
+                "/whats-new",
+                "/release-notes", 
+                "/changelog",
+                "/updates",
+                "/product-updates",
+                "/blog/category/product-updates",
+                "/release"
+            ]
+            
+            protocols = ["https://", "http://"]
+            subdomains = ["", "www."]
             
             updates = []
-            for url in search_results:
-                try:
-                    response = self.session.get(url, timeout=10)
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    
-                    # Extract update content
-                    main_content = soup.find('main') or soup.find('article') or soup.find('body')
-                    if main_content:
-                        text = main_content.get_text()[:1000]
-                        updates.append({
-                            'url': url,
-                            'content': text,
-                            'source': 'Release Notes',
-                            'competitor': competitor,
-                            'date': datetime.now()
-                        })
-                except:
-                    continue
             
-            return updates
-        
+            for protocol in protocols:
+                for subdomain in subdomains:
+                    base_url = f"{protocol}{subdomain}{domain}.com"
+                    
+                    for path in release_paths:
+                        url = f"{base_url}{path}"
+                        try:
+                            response = self.session.get(url, timeout=8, allow_redirects=True)
+                            
+                            if response.status_code == 200:
+                                soup = BeautifulSoup(response.text, 'html.parser')
+                                
+                                title = soup.find('title')
+                                title_text = title.get_text() if title else ""
+                                
+                                date_match = re.search(r'\d{4}-\d{2}-\d{2}|\d{2}/\d{2}/\d{4}|[A-Z][a-z]+ \d{1,2}, \d{4}', response.text)
+                                
+                                main_content = soup.find('main') or soup.find('article') or soup.find('body')
+                                content = main_content.get_text()[:800] if main_content else response.text[:800]
+                                
+                                updates.append({
+                                    'competitor': competitor,
+                                    'title': title_text[:100],
+                                    'content': content,
+                                    'url': url,
+                                    'date': date_match.group(0) if date_match else datetime.now().strftime("%Y-%m-%d"),
+                                    'source': 'Release Notes',
+                                    'platform': 'Website'
+                                })
+                                
+                                print(f"✅ Found release notes at: {url}")
+                                break
+                                
+                        except Exception as e:
+                            continue
+                    
+                    if updates:
+                        break
+                if updates:
+                    break
+            
+            if updates:
+                print(f"✅ Product Updates: Found {len(updates)} updates for {competitor}")
+                return updates[:5]
+            else:
+                print(f"⚠️ No release notes found for {competitor}")
+                return []
+                
         except Exception as e:
-            print(f"Error fetching updates for {competitor}: {e}")
+            print(f"Error fetching product updates for {competitor}: {e}")
             return []
     
     async def fetch_linkedin_posts(self, competitor: str) -> List[Dict]:
         """Fetch LinkedIn posts (simplified - would need proper API in production)"""
-        # This is a placeholder - LinkedIn API requires OAuth
-        # For demo, we'll use simulated data
         return [
             {
                 'content': f"{competitor} just launched new AI-powered features to help teams work smarter",

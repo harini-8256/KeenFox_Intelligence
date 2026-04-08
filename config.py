@@ -27,7 +27,7 @@ class Config:
     USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
     
     # AI settings
-    MODEL_NAME = "gemini-2.5-flash"  # Updated to available model
+    MODEL_NAME = "gemma-3-1b-it"  # Updated to available model
     TEMPERATURE = 0.3
     MAX_TOKENS = 8192
     
